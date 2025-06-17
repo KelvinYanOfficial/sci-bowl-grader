@@ -5,22 +5,22 @@ export default async function handler(req, res) {
 
   const { userAnswer, correctAnswer, isMultipleChoice = false } = req.body;
 
-  // If it's a multiple-choice question, enforce strict equality
   if (isMultipleChoice) {
     const clean = str => str.trim().toLowerCase().replace(/\.$/, "");
-    const u = clean(userAnswer);
-    const c = clean(correctAnswer);
-
-    const isStrictMatch = u === c;
-    return res.status(200).json({ result: isStrictMatch ? "correct" : "incorrect" });
+    return res.status(200).json({
+      result: clean(userAnswer) === clean(correctAnswer) ? "correct" : "incorrect"
+    });
   }
 
-  // OpenAI grading for short answer or freeform
   const prompt = `
-You are a Science Bowl judge. A student answered: "${userAnswer}".
+You are an official Science Bowl answer grader. The student answered: "${userAnswer}". 
 The correct answer is: "${correctAnswer}".
 
-Is the student answer acceptable as a correct answer? Respond with only "correct" or "incorrect".
+ONLY respond "correct" if the student's answer matches the correct answer in meaning AND contains all essential words.
+
+If the student's answer is vague, incomplete, overly broad, or rephrased in an imprecise way — respond "incorrect".
+
+ONLY respond with "correct" or "incorrect". No explanation.
 `;
 
   try {
@@ -31,7 +31,7 @@ Is the student answer acceptable as a correct answer? Respond with only "correct
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: "gpt-4-turbo",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 5,
         temperature: 0
@@ -40,7 +40,6 @@ Is the student answer acceptable as a correct answer? Respond with only "correct
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content?.toLowerCase() || "incorrect";
-
     res.status(200).json({ result: content.includes("correct") ? "correct" : "incorrect" });
   } catch (err) {
     console.error(err);
